@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Zeiterfassung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+:root {
+  --ink: #18181b;
+  --paper: #fafaf7;
+  --surface: #ffffff;
+  --border: #e4e0d8;
+  --muted: #8a8680;
+  --accent: #c84b0f;
+  --accent-soft: #fdf0ea;
+  --green: #2a6e45;
+  --green-soft: #edf5f0;
+  --radius: 10px;
+  --mono: 'DM Mono', monospace;
+  --sans: 'DM Sans', sans-serif;
+}
+
+body {
+  font-family: var(--sans);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  min-height: 100vh;
+}
+
+/* ── Layout ── */
+#app { max-width: 520px; margin: 0 auto; padding: 0 1rem 4rem; }
+
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 0 1rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+.header-left { display: flex; flex-direction: column; gap: 2px; }
+.header-title { font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+.header-date { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.header-user { font-family: var(--mono); font-size: 11px; color: var(--muted); cursor: pointer; }
+.header-user:hover { color: var(--ink); }
+
+/* ── Cards ── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-bottom: 1rem;
+}
+.card-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+
+/* ── Setup Screen ── */
+#screen-setup { padding-top: 3rem; }
+.setup-heading { font-size: 24px; font-weight: 600; letter-spacing: -0.5px; margin-bottom: 6px; }
+.setup-sub { font-size: 13px; color: var(--muted); margin-bottom: 2rem; }
+
+/* ── Form elements ── */
+label { display: block; font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
+input[type=text], input[type=email], input[type=time] {
+  width: 100%;
+  font-family: var(--sans);
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 9px 12px;
+  background: var(--paper);
+  color: var(--ink);
+  outline: none;
+  transition: border-color .15s;
+}
+input:focus { border-color: var(--ink); }
+input:disabled { opacity: .45; cursor: not-allowed; }
+.field { margin-bottom: 14px; }
+
+/* ── Activity Buttons ── */
+.activity-grid { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 14px; }
+.act-btn {
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--paper);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all .15s;
+}
+.act-btn:hover { border-color: var(--ink); }
+.act-btn.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+.act-btn:disabled { opacity: .45; cursor: not-allowed; }
+
+/* ── Timer Display ── */
+.timer-display {
+  font-family: var(--mono);
+  font-size: 40px;
+  font-weight: 500;
+  text-align: center;
+  letter-spacing: .02em;
+  padding: 1rem 0;
+  color: var(--ink);
+  opacity: .2;
+  transition: opacity .3s, color .3s;
+}
+.timer-display.running { opacity: 1; color: var(--accent); }
+
+/* ── Buttons ── */
+.btn {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: 9px;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  transition: all .15s;
+}
+.btn-primary { background: var(--ink); color: #fff; }
+.btn-primary:hover { background: #333; }
+.btn-stop { background: var(--accent); color: #fff; }
+.btn-stop:hover { background: #a83d09; }
+.btn-secondary { background: var(--surface); color: var(--ink); border: 1px solid var(--border); }
+.btn-secondary:hover { border-color: var(--ink); }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn-sm { font-size: 12px; padding: 5px 11px; width: auto; border-radius: 7px; }
+
+/* ── Mode toggle ── */
+.mode-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.toggle-link { font-family: var(--mono); font-size: 11px; color: var(--muted); cursor: pointer; }
+.toggle-link:hover { color: var(--ink); }
+
+/* ── Error ── */
+.error { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-bottom: 10px; }
+
+/* ── Daily Log ── */
+.log-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+.log-total { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.log-total strong { color: var(--ink); }
+
+.entry {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 7px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.entry-main { flex: 1; min-width: 0; }
+.entry-project { font-size: 14px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.entry-meta { display: flex; align-items: center; gap: 8px; margin-top: 3px; flex-wrap: wrap; }
+.entry-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.entry-time { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.entry-dur { font-family: var(--mono); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.entry-actions { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+.icon-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: var(--muted); padding: 2px 4px; transition: color .15s; line-height: 1; }
+.icon-btn:hover { color: var(--ink); }
+.icon-btn.del:hover { color: var(--accent); }
+
+.entry.editing { background: var(--accent-soft); border-color: #f5c4aa; }
+.edit-form { width: 100%; }
+.edit-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.edit-row > * { flex: 1; }
+.edit-btns { display: flex; gap: 8px; }
+
+.empty { text-align: center; font-family: var(--mono); font-size: 12px; color: var(--muted); padding: 2rem 0; }
+
+.log-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+.log-footer-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.log-footer-total { font-family: var(--mono); font-size: 18px; font-weight: 500; }
+
+footer {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--border);
+  padding-top: 2rem;
+}
+
+/* ── Animations ── */
+@keyframes fadein { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
+.card { animation: fadein .2s ease; }
+.entry { animation: fadein .15s ease; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="root"></div>
+</div>
+
+<script>
+// ─────────────────────────────────────────
+// CONFIG
+// ─────────────────────────────────────────
+const SUPABASE_URL  = 'https://tyltscnpujsslefthcvk.supabase.co'
+const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5bHRzY25wdWpzc2xlZnRoY3ZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5OTk1MzQsImV4cCI6MjA5MzU3NTUzNH0.2rcsMMHjqOQ3UV-4YieiikcxpvkRWg-lF7ytAuM5tSo'
+const ADMIN_EMAIL   = 'kaspar@example.com' // ← Kaspars echte E-Mail eintragen
+
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+
+const ACTIVITIES = [
+  { value: 'recherche', label: 'Recherche' },
+  { value: 'podcast',   label: 'Podcast'   },
+  { value: 'schnitt',   label: 'Schnitt'   },
+  { value: 'sonstiges', label: 'Sonstiges' },
+]
+
+// ─────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────
+let state = {
+  user: null,
+  entries: [],
+  loading: true,
+
+  // Setup form
+  setupName: '',
+  setupEmail: '',
+  setupError: '',
+  setupLoading: false,
+
+  // Timer
+  activity: '',
+  activityCustom: '',
+  project: '',
+  timerRunning: false,
+  timerStart: null,
+  timerElapsed: 0,
+  timerInterval: null,
+  timerError: '',
+
+  // Manual mode
+  manualMode: false,
+  manualStart: '',
+  manualEnd: '',
+
+  // Editing
+  editingId: null,
+  editActivity: '',
+  editActivityCustom: '',
+  editProject: '',
+}
+
+// ─────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────
+function today() {
+  return new Date().toISOString().split('T')[0]
+}
+
+function fmtDate() {
+  return new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function fmtTime(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+}
+
+function fmtDuration(min) {
+  if (!min && min !== 0) return '—'
+  const h = Math.floor(min / 60), m = min % 60
+  if (h === 0) return `${m}min`
+  if (m === 0) return `${h}h`
+  return `${h}h ${m}min`
+}
+
+function fmtElapsed(sec) {
+  const h = Math.floor(sec / 3600)
+  const m = Math.floor((sec % 3600) / 60)
+  const s = sec % 60
+  return [h,m,s].map(v => String(v).padStart(2,'0')).join(':')
+}
+
+function activityLabel(entry) {
+  if (entry.activity === 'sonstiges' && entry.activity_custom) return entry.activity_custom
+  return ACTIVITIES.find(a => a.value === entry.activity)?.label || entry.activity
+}
+
+function totalMinutes() {
+  return state.entries.reduce((s, e) => s + (e.duration_minutes || 0), 0)
+}
+
+// ─────────────────────────────────────────
+// RENDER
+// ─────────────────────────────────────────
+function render() {
+  const root = document.getElementById('root')
+
+  if (state.loading) {
+    root.innerHTML = `<div style="padding:4rem;text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)">Laden…</div>`
+    return
+  }
+
+  if (!state.user) {
+    renderSetup(root)
+    return
+  }
+
+  renderApp(root)
+}
+
+function renderSetup(root) {
+  root.innerHTML = `
+  <div id="screen-setup">
+    <div class="setup-heading">Zeiterfassung</div>
+    <p class="setup-sub">Einmalig einrichten – danach automatisch wiedererkannt.</p>
+
+    <div class="card">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="setup-name" value="${esc(state.setupName)}" placeholder="Vorname Nachname">
+      </div>
+      <div class="field">
+        <label>E-Mail</label>
+        <input type="email" id="setup-email" value="${esc(state.setupEmail)}" placeholder="name@redaktion.de">
+      </div>
+      ${state.setupError ? `<div class="error">${esc(state.setupError)}</div>` : ''}
+      <button class="btn btn-primary" id="btn-setup" ${state.setupLoading ? 'disabled' : ''}>
+        ${state.setupLoading ? 'Wird eingerichtet…' : 'Profil anlegen →'}
+      </button>
+    </div>
+
+    <p style="text-align:center;font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:1rem">
+      Bestehende E-Mail? Automatisch wiedererkannt.
+    </p>
+  </div>`
+
+  document.getElementById('setup-name').addEventListener('input', e => { state.setupName = e.target.value })
+  document.getElementById('setup-email').addEventListener('input', e => { state.setupEmail = e.target.value })
+  document.getElementById('btn-setup').addEventListener('click', doSetup)
+}
+
+function renderApp(root) {
+  root.innerHTML = `
+  <header>
+    <div class="header-left">
+      <div class="header-title">Zeiterfassung</div>
+      <div class="header-date">${fmtDate()}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:14px;font-weight:500">${esc(state.user.name)}</div>
+      <div class="header-user" id="btn-logout">wechseln</div>
+    </div>
+  </header>
+
+  ${renderTimerCard()}
+  ${renderLog()}
+
+  <footer>Tagesbericht automatisch um 22:00 Uhr · alle Rechte vorbehalten</footer>
+  `
+
+  bindTimerEvents()
+  bindLogEvents()
+  document.getElementById('btn-logout').addEventListener('click', doLogout)
+}
+
+function renderTimerCard() {
+  const actBtns = ACTIVITIES.map(a => `
+    <button class="act-btn ${state.activity === a.value ? 'active' : ''} act-pick"
+      data-val="${a.value}" ${state.timerRunning ? 'disabled' : ''}>
+      ${a.label}
+    </button>`).join('')
+
+  const customField = state.activity === 'sonstiges' ? `
+    <div class="field" style="margin-top:8px">
+      <input type="text" id="activity-custom" value="${esc(state.activityCustom)}"
+        placeholder="Was genau?" ${state.timerRunning ? 'disabled' : ''}>
+    </div>` : ''
+
+  const modeToggle = `
+    <div class="mode-toggle">
+      <div class="card-label" style="margin-bottom:0">Neuer Eintrag</div>
+      <span class="toggle-link" id="btn-mode-toggle">
+        ${state.manualMode ? '← Timer' : '+ Manuell'}
+      </span>
+    </div>`
+
+  const timerOrManual = state.manualMode ? `
+    <div class="edit-row" style="margin-bottom:14px">
+      <div>
+        <label>Startzeit</label>
+        <input type="time" id="manual-start" value="${state.manualStart}">
+      </div>
+      <div>
+        <label>Endzeit</label>
+        <input type="time" id="manual-end" value="${state.manualEnd}">
+      </div>
+    </div>` : `
+    <div class="timer-display ${state.timerRunning ? 'running' : ''}">
+      ${fmtElapsed(state.timerElapsed)}
+    </div>`
+
+  const actionBtn = state.manualMode
+    ? `<button class="btn btn-primary" id="btn-manual-save">Eintrag speichern</button>`
+    : `<button class="btn ${state.timerRunning ? 'btn-stop' : 'btn-primary'}" id="btn-startstop">
+        ${state.timerRunning ? '■ Stopp' : '▶ Start'}
+       </button>`
+
+  return `
+  <div class="card">
+    ${modeToggle}
+    <div class="activity-grid">${actBtns}</div>
+    ${customField}
+    <div class="field">
+      <label>Projekt</label>
+      <input type="text" id="project-input" value="${esc(state.project)}"
+        placeholder="z.B. Chinafilm, Podcast EP. 47" ${state.timerRunning ? 'disabled' : ''}>
+    </div>
+    ${timerOrManual}
+    ${state.timerError ? `<div class="error">${esc(state.timerError)}</div>` : ''}
+    ${actionBtn}
+  </div>`
+}
+
+function renderLog() {
+  const entries = state.entries
+  const total = totalMinutes()
+
+  const entriesHtml = entries.length === 0
+    ? `<div class="empty">Noch keine Einträge heute.</div>`
+    : entries.map(e => renderEntry(e)).join('')
+
+  const footer = entries.length > 0 ? `
+    <div class="log-footer">
+      <span class="log-footer-label">Gesamtstunden</span>
+      <span class="log-footer-total">${fmtDuration(total)}</span>
+    </div>` : ''
+
+  return `
+  <div class="card">
+    <div class="log-header">
+      <div class="card-label" style="margin-bottom:0">Heute</div>
+      ${entries.length > 0 ? `<div class="log-total">Gesamt: <strong>${fmtDuration(total)}</strong></div>` : ''}
+    </div>
+    <div id="entries-list">${entriesHtml}</div>
+    ${footer}
+  </div>`
+}
+
+function renderEntry(e) {
+  if (state.editingId === e.id) {
+    const actBtns = ACTIVITIES.map(a => `
+      <button class="act-btn btn-sm ${state.editActivity === a.value ? 'active' : ''} edit-act-pick"
+        data-val="${a.value}">${a.label}</button>`).join('')
+    const customField = state.editActivity === 'sonstiges' ? `
+      <input type="text" id="edit-custom" value="${esc(state.editActivityCustom)}"
+        placeholder="Was genau?" style="margin-top:6px">` : ''
+    return `
+    <div class="entry editing" data-id="${e.id}">
+      <div class="edit-form">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px">${actBtns}</div>
+        ${customField}
+        <div class="field" style="margin-top:8px;margin-bottom:8px">
+          <input type="text" id="edit-project" value="${esc(state.editProject)}">
+        </div>
+        <div class="edit-btns">
+          <button class="btn btn-primary btn-sm" id="btn-edit-save" data-id="${e.id}">Speichern</button>
+          <button class="btn btn-secondary btn-sm" id="btn-edit-cancel">Abbrechen</button>
+        </div>
+      </div>
+    </div>`
+  }
+
+  return `
+  <div class="entry" data-id="${e.id}">
+    <div class="entry-main">
+      <div class="entry-project">${esc(e.project)}</div>
+      <div class="entry-meta">
+        <span class="entry-badge">${esc(activityLabel(e))}</span>
+        <span class="entry-time">${fmtTime(e.started_at)} – ${fmtTime(e.stopped_at)}</span>
+      </div>
+    </div>
+    <div class="entry-actions">
+      <span class="entry-dur">${fmtDuration(e.duration_minutes)}</span>
+      <button class="icon-btn edit-entry" data-id="${e.id}" title="Bearbeiten">✎</button>
+      <button class="icon-btn del del-entry" data-id="${e.id}" title="Löschen">×</button>
+    </div>
+  </div>`
+}
+
+// ─────────────────────────────────────────
+// EVENT BINDING
+// ─────────────────────────────────────────
+function bindTimerEvents() {
+  document.querySelectorAll('.act-pick').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.activity = btn.dataset.val
+      state.timerError = ''
+      render()
+    })
+  })
+
+  const customInput = document.getElementById('activity-custom')
+  if (customInput) customInput.addEventListener('input', e => { state.activityCustom = e.target.value })
+
+  const projInput = document.getElementById('project-input')
+  if (projInput) projInput.addEventListener('input', e => { state.project = e.target.value })
+
+  document.getElementById('btn-mode-toggle')?.addEventListener('click', () => {
+    state.manualMode = !state.manualMode
+    if (state.timerRunning) stopTimer(false)
+    state.timerError = ''
+    render()
+  })
+
+  document.getElementById('btn-startstop')?.addEventListener('click', handleStartStop)
+  document.getElementById('btn-manual-save')?.addEventListener('click', handleManualSave)
+
+  const ms = document.getElementById('manual-start')
+  const me = document.getElementById('manual-end')
+  if (ms) ms.addEventListener('change', e => { state.manualStart = e.target.value })
+  if (me) me.addEventListener('change', e => { state.manualEnd = e.target.value })
+}
+
+function bindLogEvents() {
+  document.querySelectorAll('.edit-entry').forEach(btn => {
+    btn.addEventListener('click', () => startEdit(btn.dataset.id))
+  })
+  document.querySelectorAll('.del-entry').forEach(btn => {
+    btn.addEventListener('click', () => deleteEntry(btn.dataset.id))
+  })
+  document.querySelectorAll('.edit-act-pick').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.editActivity = btn.dataset.val
+      render()
+    })
+  })
+  const editCustom = document.getElementById('edit-custom')
+  if (editCustom) editCustom.addEventListener('input', e => { state.editActivityCustom = e.target.value })
+  const editProj = document.getElementById('edit-project')
+  if (editProj) editProj.addEventListener('input', e => { state.editProject = e.target.value })
+
+  document.getElementById('btn-edit-save')?.addEventListener('click', e => saveEdit(e.target.dataset.id))
+  document.getElementById('btn-edit-cancel')?.addEventListener('click', () => {
+    state.editingId = null
+    render()
+  })
+}
+
+// ─────────────────────────────────────────
+// ACTIONS – Setup
+// ─────────────────────────────────────────
+async function doSetup() {
+  const name = state.setupName.trim()
+  const email = state.setupEmail.trim().toLowerCase()
+  if (!name || !email) return
+
+  state.setupLoading = true
+  state.setupError = ''
+  render()
+
+  // Prüfen ob E-Mail schon existiert
+  const { data: existing } = await db.from('users').select('*').eq('email', email).single()
+  if (existing) {
+    localStorage.setItem('zt_user_id', existing.id)
+    state.user = existing
+    state.setupLoading = false
+    await loadEntries()
+    render()
+    return
+  }
+
+  const { data, error } = await db.from('users').insert({ name, email }).select().single()
+  if (error) {
+    state.setupError = 'Fehler beim Anlegen. Bitte erneut versuchen.'
+    state.setupLoading = false
+    render()
+    return
+  }
+
+  localStorage.setItem('zt_user_id', data.id)
+  state.user = data
+  state.setupLoading = false
+  await loadEntries()
+  render()
+}
+
+function doLogout() {
+  localStorage.removeItem('zt_user_id')
+  state.user = null
+  state.entries = []
+  render()
+}
+
+// ─────────────────────────────────────────
+// ACTIONS – Timer
+// ─────────────────────────────────────────
+function validate() {
+  if (!state.activity) return 'Bitte eine Tätigkeit wählen.'
+  if (state.activity === 'sonstiges' && !state.activityCustom.trim()) return 'Bitte die Tätigkeit beschreiben.'
+  if (!state.project.trim()) return 'Bitte ein Projekt eingeben.'
+  return ''
+}
+
+function handleStartStop() {
+  if (!state.timerRunning) {
+    const err = validate()
+    if (err) { state.timerError = err; render(); return }
+    state.timerError = ''
+    startTimer()
+  } else {
+    stopTimer(true)
+  }
+}
+
+function startTimer() {
+  state.timerStart = new Date()
+  state.timerElapsed = 0
+  state.timerRunning = true
+  state.timerInterval = setInterval(() => {
+    state.timerElapsed++
+    // Only update the display, not full re-render
+    const disp = document.querySelector('.timer-display')
+    if (disp) disp.textContent = fmtElapsed(state.timerElapsed)
+  }, 1000)
+  render()
+}
+
+async function stopTimer(save) {
+  clearInterval(state.timerInterval)
+  state.timerInterval = null
+
+  if (save) {
+    const stoppedAt = new Date()
+    const durationMinutes = Math.round(state.timerElapsed / 60)
+    await saveEntry({
+      startedAt: state.timerStart.toISOString(),
+      stoppedAt: stoppedAt.toISOString(),
+      durationMinutes,
+    })
+  }
+
+  state.timerRunning = false
+  state.timerElapsed = 0
+  state.timerStart = null
+  state.activity = ''
+  state.activityCustom = ''
+  state.project = ''
+  render()
+}
+
+async function handleManualSave() {
+  const err = validate()
+  if (err) { state.timerError = err; render(); return }
+  if (!state.manualStart || !state.manualEnd) { state.timerError = 'Bitte Start- und Endzeit eingeben.'; render(); return }
+
+  const d = today()
+  const startedAt = new Date(`${d}T${state.manualStart}:00`)
+  const stoppedAt = new Date(`${d}T${state.manualEnd}:00`)
+  if (stoppedAt <= startedAt) { state.timerError = 'Endzeit muss nach Startzeit liegen.'; render(); return }
+
+  state.timerError = ''
+  const durationMinutes = Math.round((stoppedAt - startedAt) / 60000)
+  await saveEntry({ startedAt: startedAt.toISOString(), stoppedAt: stoppedAt.toISOString(), durationMinutes })
+
+  state.activity = ''
+  state.activityCustom = ''
+  state.project = ''
+  state.manualStart = ''
+  state.manualEnd = ''
+  state.manualMode = false
+  render()
+}
+
+async function saveEntry({ startedAt, stoppedAt, durationMinutes }) {
+  const { data, error } = await db.from('time_entries').insert({
+    user_id: state.user.id,
+    date: today(),
+    activity: state.activity,
+    activity_custom: state.activity === 'sonstiges' ? state.activityCustom : null,
+    project: state.project.trim(),
+    started_at: startedAt,
+    stopped_at: stoppedAt,
+    duration_minutes: durationMinutes,
+  }).select().single()
+
+  if (!error && data) state.entries.push(data)
+}
+
+// ─────────────────────────────────────────
+// ACTIONS – Log
+// ─────────────────────────────────────────
+async function loadEntries() {
+  const { data } = await db.from('time_entries')
+    .select('*')
+    .eq('user_id', state.user.id)
+    .eq('date', today())
+    .order('created_at', { ascending: true })
+  state.entries = data || []
+}
+
+function startEdit(id) {
+  const entry = state.entries.find(e => e.id === id)
+  if (!entry) return
+  state.editingId = id
+  state.editActivity = entry.activity
+  state.editActivityCustom = entry.activity_custom || ''
+  state.editProject = entry.project
+  render()
+}
+
+async function saveEdit(id) {
+  const { data, error } = await db.from('time_entries').update({
+    activity: state.editActivity,
+    activity_custom: state.editActivity === 'sonstiges' ? state.editActivityCustom : null,
+    project: state.editProject.trim(),
+  }).eq('id', id).select().single()
+
+  if (!error && data) {
+    state.entries = state.entries.map(e => e.id === id ? data : e)
+  }
+  state.editingId = null
+  render()
+}
+
+async function deleteEntry(id) {
+  await db.from('time_entries').delete().eq('id', id)
+  state.entries = state.entries.filter(e => e.id !== id)
+  render()
+}
+
+// ─────────────────────────────────────────
+// UTILITY
+// ─────────────────────────────────────────
+function esc(str) {
+  if (!str) return ''
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')
+}
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+async function init() {
+  const savedId = localStorage.getItem('zt_user_id')
+  if (savedId) {
+    const { data } = await db.from('users').select('*').eq('id', savedId).single()
+    if (data) {
+      state.user = data
+      await loadEntries()
+    } else {
+      localStorage.removeItem('zt_user_id')
+    }
+  }
+  state.loading = false
+  render()
+}
+
+init()
+</script>
+</body>
+</html>
