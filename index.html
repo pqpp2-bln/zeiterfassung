@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 
@@ -215,6 +216,47 @@ footer {
   padding-top: 2rem;
 }
 
+/* ── Admin Panel ── */
+.admin-toggle {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--border);
+  cursor: pointer;
+  text-align: center;
+  padding: 1rem 0 0;
+  transition: color .2s;
+}
+.admin-toggle:hover { color: var(--muted); }
+
+.admin-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  margin-top: .5rem;
+}
+.admin-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+  color: var(--muted);
+  margin-bottom: 1rem;
+}
+.admin-row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+}
+.admin-row .field { flex: 1; margin-bottom: 0; }
+.admin-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  margin-top: 8px;
+}
+.admin-status.ok { color: var(--green); }
+.admin-status.err { color: var(--accent); }
+
 /* ── Animations ── */
 @keyframes fadein { from { opacity:0; transform:translateY(6px) } to { opacity:1; transform:none } }
 .card { animation: fadein .2s ease; }
@@ -232,7 +274,13 @@ footer {
 // ─────────────────────────────────────────
 const SUPABASE_URL  = 'https://tyltscnpujsslefthcvk.supabase.co'
 const SUPABASE_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5bHRzY25wdWpzc2xlZnRoY3ZrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc5OTk1MzQsImV4cCI6MjA5MzU3NTUzNH0.2rcsMMHjqOQ3UV-4YieiikcxpvkRWg-lF7ytAuM5tSo'
-const ADMIN_EMAIL   = 'C.fischer@pqpp2.de' // ← Kaspars echte E-Mail eintragen
+const ADMIN_EMAIL   = 'C.fischer@pqpp2.de'
+
+const EMAILJS_SERVICE  = 'service_pvbg9mt'
+const EMAILJS_TEMPLATE = 'template_p95hcvu'
+const EMAILJS_KEY      = '5kbCLVnhoa30tMLP8'
+
+emailjs.init(EMAILJS_KEY) // ← Kaspars echte E-Mail eintragen
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
 
@@ -277,6 +325,17 @@ let state = {
   editActivity: '',
   editActivityCustom: '',
   editProject: '',
+
+  // Admin
+  adminOpen: false,
+  adminEmail: '',
+  adminEmailInput: '',
+  adminSaving: false,
+  adminStatus: '',
+
+  // Tagesbericht
+  reportSending: false,
+  reportStatus: '',
 }
 
 // ─────────────────────────────────────────
@@ -384,13 +443,180 @@ function renderApp(root) {
 
   ${renderTimerCard()}
   ${renderLog()}
+  ${renderReportButton()}
+  ${renderAdminToggle()}
 
-  <footer>Tagesbericht automatisch um 22:00 Uhr · alle Rechte vorbehalten</footer>
+  <footer>Tagesbericht automatisch um 18:00 Uhr</footer>
   `
 
   bindTimerEvents()
   bindLogEvents()
+  bindAdminEvents()
+  bindReportEvents()
   document.getElementById('btn-logout').addEventListener('click', doLogout)
+}
+
+function renderReportButton() {
+  const statusHtml = state.reportStatus ? `
+    <div class="admin-status ${state.reportStatus.ok ? 'ok' : 'err'}" style="text-align:center;margin-top:8px">
+      ${esc(state.reportStatus.msg)}
+    </div>` : ''
+
+  return `
+  <div class="card" style="text-align:center">
+    <div class="card-label" style="margin-bottom:.75rem">Tagesbericht</div>
+    <button class="btn btn-primary" id="btn-send-report"
+      ${state.reportSending || state.entries.length === 0 ? 'disabled' : ''}>
+      ${state.reportSending ? 'Wird gesendet…' : '✉ Tagesbericht jetzt senden'}
+    </button>
+    ${state.entries.length === 0 ? `<p style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px">Noch keine Einträge heute.</p>` : ''}
+    ${statusHtml}
+  </div>`
+}
+
+function bindReportEvents() {
+  document.getElementById('btn-send-report')?.addEventListener('click', sendReport)
+}
+
+async function sendReport() {
+  state.reportSending = true
+  state.reportStatus = ''
+  render()
+
+  try {
+    // Alle Nutzer + heutige Einträge aus Supabase laden
+    const todayStr = today()
+    const todayDE = new Date().toLocaleDateString('de-DE', { day: 'numeric', month: 'long', year: 'numeric' })
+
+    const [{ data: users }, { data: allEntries }] = await Promise.all([
+      db.from('users').select('*'),
+      db.from('time_entries').select('*').eq('date', todayStr).order('created_at', { ascending: true })
+    ])
+
+    if (!allEntries?.length) {
+      state.reportStatus = { ok: false, msg: 'Keine Einträge heute.' }
+      state.reportSending = false
+      render()
+      return
+    }
+
+    // Admin-E-Mail aus settings laden (falls vorhanden), sonst Fallback
+    const { data: setting } = await db.from('settings').select('value').eq('key', 'admin_email').single()
+    const adminEmail = setting?.value || ADMIN_EMAIL
+
+    // Nach Nutzer gruppieren und Text aufbauen
+    const byUser = {}
+    for (const e of allEntries) {
+      if (!byUser[e.user_id]) byUser[e.user_id] = []
+      byUser[e.user_id].push(e)
+    }
+
+    const ACT = { recherche: 'Recherche', podcast: 'Podcast', schnitt: 'Schnitt', sonstiges: 'Sonstiges' }
+    function durFmt(min) {
+      const h = Math.floor(min/60), m = min%60
+      return h===0?`${m}min`:m===0?`${h}h`:`${h}h ${m}min`
+    }
+
+    let body = `Tagesbericht – ${todayDE}\n${'═'.repeat(50)}\n\n`
+    for (const u of users || []) {
+      const ue = byUser[u.id]
+      if (!ue?.length) continue
+      const rows = ue.map(e => {
+        const act = e.activity==='sonstiges'&&e.activity_custom ? e.activity_custom : (ACT[e.activity]||e.activity)
+        return `  ${act.padEnd(16)} ${e.project.padEnd(22)} ${durFmt(e.duration_minutes||0)}`
+      })
+      const total = ue.reduce((s,e)=>s+(e.duration_minutes||0),0)
+      body += `${u.name}\n${'─'.repeat(50)}\n${rows.join('\n')}\n${'─'.repeat(50)}\n  Gesamt: ${durFmt(total)}\n\n`
+    }
+
+    // Mail senden via EmailJS
+    await emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, {
+      to_email: adminEmail,
+      date: todayDE,
+      message: body,
+      name: 'Zeiterfassung',
+    })
+
+    state.reportStatus = { ok: true, msg: `✓ Bericht gesendet an ${adminEmail}` }
+  } catch(err) {
+    state.reportStatus = { ok: false, msg: 'Fehler beim Senden. Bitte erneut versuchen.' }
+    console.error(err)
+  }
+
+  state.reportSending = false
+  render()
+}
+
+function renderAdminToggle() {
+  const panel = state.adminOpen ? `
+  <div class="admin-panel">
+    <div class="admin-title">⚙ Admin-Einstellungen</div>
+    <div class="admin-row">
+      <div class="field">
+        <label>Tagesbericht senden an</label>
+        <input type="email" id="admin-email-input" value="${esc(state.adminEmailInput)}"
+          placeholder="kaspar@example.com">
+      </div>
+      <button class="btn btn-primary btn-sm" id="btn-admin-save" style="margin-bottom:0;flex-shrink:0"
+        ${state.adminSaving ? 'disabled' : ''}>
+        ${state.adminSaving ? '…' : 'Speichern'}
+      </button>
+    </div>
+    ${state.adminStatus ? `<div class="admin-status ${state.adminStatus.ok ? 'ok' : 'err'}">${esc(state.adminStatus.msg)}</div>` : ''}
+    <div style="margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)">
+      <div class="admin-title" style="margin-bottom:.5rem">Edge Function URL</div>
+      <code style="font-family:var(--mono);font-size:11px;color:var(--muted);word-break:break-all">
+        ${SUPABASE_URL}/functions/v1/daily-report
+      </code>
+      <p style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px">
+        Diese URL bei cron-job.org eintragen (täglich 18:00 Uhr, POST).
+      </p>
+    </div>
+  </div>` : ''
+
+  return `
+  <div class="admin-toggle" id="btn-admin-toggle">
+    ${state.adminOpen ? '▲ Einstellungen schließen' : '⚙ Admin'}
+  </div>
+  ${panel}`
+}
+
+function bindAdminEvents() {
+  document.getElementById('btn-admin-toggle')?.addEventListener('click', async () => {
+    state.adminOpen = !state.adminOpen
+    if (state.adminOpen && !state.adminEmail) await loadAdminEmail()
+    render()
+  })
+  document.getElementById('admin-email-input')?.addEventListener('input', e => {
+    state.adminEmailInput = e.target.value
+  })
+  document.getElementById('btn-admin-save')?.addEventListener('click', saveAdminEmail)
+}
+
+async function loadAdminEmail() {
+  const { data } = await db.from('settings').select('value').eq('key', 'admin_email').single()
+  if (data) {
+    state.adminEmail = data.value
+    state.adminEmailInput = data.value
+  }
+}
+
+async function saveAdminEmail() {
+  const email = state.adminEmailInput.trim()
+  if (!email) return
+  state.adminSaving = true
+  state.adminStatus = ''
+  render()
+
+  const { error } = await db.from('settings').upsert({ key: 'admin_email', value: email })
+  state.adminSaving = false
+  if (error) {
+    state.adminStatus = { ok: false, msg: 'Fehler beim Speichern.' }
+  } else {
+    state.adminEmail = email
+    state.adminStatus = { ok: true, msg: `✓ Gespeichert – Berichte gehen jetzt an ${email}` }
+  }
+  render()
 }
 
 function renderTimerCard() {
@@ -780,6 +1006,9 @@ async function init() {
       localStorage.removeItem('zt_user_id')
     }
   }
+  // Admin-E-Mail vorladen
+  const { data: setting } = await db.from('settings').select('value').eq('key', 'admin_email').single()
+  if (setting) { state.adminEmail = setting.value; state.adminEmailInput = setting.value }
   state.loading = false
   render()
 }
