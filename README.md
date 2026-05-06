@@ -1,41 +1,48 @@
 # Zeiterfassung
 
-Browserbasiertes Zeiterfassungstool für das Redaktionsbüro. Keine Installation, kein Login – einfach aufrufen und loslegen.
+Tägliche Zeiterfassung für das Redaktionsbüro.
 
-**→ [zeiterfassung.derb3rt.github.io](https://derb3rt.github.io/zeiterfassung/)**
-
----
-
-## Funktionen
-
-- **Profil anlegen** – einmalig Name und E-Mail eintragen, danach automatisch wiedererkannt
-- **Zeiterfassung** – Tätigkeit wählen (Recherche, Podcast, Schnitt, Sonstiges), Projekt eingeben, Timer starten/stoppen
-- **Manueller Eintrag** – falls der Timer vergessen wurde, Zeiten nachträglich eintragen
-- **Tagesübersicht** – alle Einträge des Tages, bearbeitbar und löschbar
-- **Tagesbericht** – ab 17:00 Uhr kann ein gebündelter Bericht an Kaspar Fischer gesendet werden
+**→ [App öffnen](https://pqpp2-bln.github.io/zeiterfassung/)**
 
 ---
 
-## Tagesbericht senden
+## So funktioniert es
 
-Ab **17:00 Uhr** erscheint der Button „Tagesbericht jetzt senden". Ein Klick schickt eine Mail mit allen Einträgen aller Mitarbeitenden des Tages an Kaspar.
+### 1. Profil anlegen (einmalig)
 
----
-
-## Stack
-
-| Teil | Dienst |
-|------|--------|
-| Hosting | GitHub Pages |
-| Datenbank | Supabase |
-| E-Mail | EmailJS + Gmail |
-
-Komplett kostenlos. Keine Server, keine Installation.
+Beim ersten Besuch einfach **Name und E-Mail-Adresse** eintragen. Der Browser merkt sich das – beim nächsten Besuch wird man automatisch wiedererkannt.
 
 ---
 
-## Für Mitarbeitende
+### 2. Zeit erfassen
 
-Einfach die URL aufrufen, einmalig Name und E-Mail eintragen – fertig. Der Browser merkt sich das Profil automatisch.
+1. **Tätigkeit wählen** – Recherche, Podcast, Schnitt oder Sonstiges
+2. **Projekt eingeben** – z.B. „Chinafilm" oder „Podcast EP. 47"
+3. **▶ Start** drücken – der Timer läuft
+4. **■ Stopp** drücken wenn fertig
 
-Bei Fragen oder Problemen: Bertram Mischke
+Mehrere Einträge pro Tag sind möglich.
+
+**Vergessen zu starten?** Oben rechts auf **„+ Manuell"** klicken und Start- sowie Endzeit von Hand eintragen.
+
+---
+
+### 3. Tagesübersicht
+
+Alle Einträge des Tages sind unterhalb des Timers sichtbar. Einträge können bearbeitet (✎) oder gelöscht (×) werden.
+
+---
+
+### 4. Tagesbericht
+
+Ab **17:00 Uhr** erscheint der Button **„✉ Tagesbericht jetzt senden"**.
+
+Ein Klick genügt – Kaspar bekommt automatisch eine Zusammenfassung aller Einträge des Tages.
+
+> Bitte den Bericht **täglich vor Feierabend** absenden.
+
+---
+
+## Fragen oder Probleme?
+
+Bertram Mischke – bertram.mischke@googlemail.com
