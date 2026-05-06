@@ -8,9 +8,9 @@ Tägliche Zeiterfassung für das Redaktionsbüro.
 
 ## So funktioniert es
 
-### 1. Profil anlegen (einmalig)
+### 1. Einloggen
 
-Beim ersten Besuch einfach **Name und E-Mail-Adresse** eintragen. Der Browser merkt sich das – beim nächsten Besuch wird man automatisch wiedererkannt.
+Beim ersten Besuch das Büro-Passwort eingeben. Danach Name und E-Mail-Adresse eintragen – der Browser merkt sich das, beim nächsten Besuch wird man automatisch wiedererkannt.
 
 ---
 
@@ -35,11 +35,15 @@ Alle Einträge des Tages sind unterhalb des Timers sichtbar. Einträge können b
 
 ### 4. Tagesbericht
 
-Ab **17:00 Uhr** erscheint der Button **„✉ Tagesbericht jetzt senden"**.
+Der Tagesbericht wird täglich um **18:00 Uhr automatisch** an die zuständigen Personen gesendet – kein manuelles Absenden nötig.
 
-Ein Klick genügt – Kaspar bekommt automatisch eine Zusammenfassung aller Einträge des Tages.
+---
 
-> Bitte den Bericht **täglich vor Feierabend** absenden.
+## Für Admins
+
+Kaspar Fischer und Bertram Mischke haben Zugriff auf das **Admin-Panel** (unten auf der Seite sichtbar nach dem Einloggen mit der jeweiligen E-Mail-Adresse).
+
+Dort können Empfänger des Tagesberichts jederzeit hinzugefügt oder entfernt werden.
 
 ---
 
